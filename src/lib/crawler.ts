@@ -105,13 +105,13 @@ async function fetchCafePostsWeb(keyword: string, startDate: string, endDate: st
         let scrolls = 0;
 
         while (scrolls < MAX_SCROLL_ATTEMPTS) {
-            const currentHeight = await page.evaluate('document.body.scrollHeight');
+            const currentHeight = await page.evaluate(() => document.body.scrollHeight);
             await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
 
             // 네이버 검색 결과 비동기 렌더링 대기
             await new Promise(r => setTimeout(r, 600));
 
-            const newHeight = await page.evaluate('document.body.scrollHeight');
+            const newHeight = await page.evaluate(() => document.body.scrollHeight);
             if (newHeight === prevHeight) {
                 noChangeCount++;
                 if (noChangeCount >= 3) break; // 3번 시도해도 더 바닥에 안 내려가면 끝 (렌더 완료)
