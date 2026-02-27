@@ -36,8 +36,9 @@ export async function POST(request: Request) {
             }
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('API Error:', error);
-        return NextResponse.json({ error: '데이터 수집 중 오류가 발생했습니다.', details: error.message }, { status: 500 });
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return NextResponse.json({ error: '데이터 수집 중 오류가 발생했습니다.', details: errorMessage }, { status: 500 });
     }
 }

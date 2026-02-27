@@ -13,7 +13,7 @@ export default function Home() {
   const [endDate, setEndDate] = useState(todayStr);
 
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<{ summary: { blogPostCount: number; cafePostCount: number; totalPosts: number } } | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -41,8 +41,8 @@ export default function Home() {
         throw new Error(data.error || '수집 중 오류 발생');
       }
       setResult(data);
-    } catch (err: any) {
-      setErrorMsg(err.message);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }

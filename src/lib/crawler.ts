@@ -1,5 +1,7 @@
 import axios from 'axios';
 import puppeteer from 'puppeteer';
+import puppeteerCore from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 
 export interface PostData {
     url: string;
@@ -17,7 +19,7 @@ const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET || '';
  * 병렬로 최대 1000건까지 수집하여 일관성 확보
  */
 async function fetchBlogPostsApi(keyword: string, maxItems: number = 1000): Promise<PostData[]> {
-    const items: any[] = [];
+    const items: Array<{ link: string; postdate?: string; title: string; description: string }> = [];
     const maxPages = Math.ceil(maxItems / 100);
     const promises = [];
 
@@ -75,10 +77,23 @@ async function fetchCafePostsWeb(keyword: string, startDate: string, endDate: st
     const startStr = startDate.replace(/-/g, '');
     const endStr = endDate.replace(/-/g, '');
 
-    const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--blink-settings=imagesEnabled=false']
-    });
+    let browser;
+    if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+        chromium.setGraphicsMode = false;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ch = chromium as any;
+        browser = await puppeteerCore.launch({
+            args: [...ch.args, '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--blink-settings=imagesEnabled=false'],
+            defaultViewport: ch.defaultViewport,
+            executablePath: await ch.executablePath(),
+            headless: ch.headless,
+        });
+    } else {
+        browser = await puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--blink-settings=imagesEnabled=false']
+        });
+    }
 
     let items: PostData[] = [];
 
@@ -105,7 +120,7 @@ async function fetchCafePostsWeb(keyword: string, startDate: string, endDate: st
         let scrolls = 0;
 
         while (scrolls < MAX_SCROLL_ATTEMPTS) {
-            const currentHeight = await page.evaluate(() => document.body.scrollHeight);
+            await page.evaluate(() => document.body.scrollHeight);
             await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
 
             // 네이버 검색 결과 비동기 렌더링 대기
@@ -124,7 +139,7 @@ async function fetchCafePostsWeb(keyword: string, startDate: string, endDate: st
 
         // 렌더링된 모든 카페글(.title_area 안의 .title_link) 추출
         const pageData = await page.evaluate(() => {
-            const results: any[] = [];
+            const results: { title: string; url: string }[] = [];
             document.querySelectorAll('.title_area .title_link').forEach(el => {
                 results.push({
                     title: (el as HTMLElement).innerText.trim(),
