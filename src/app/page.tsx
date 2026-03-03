@@ -1,6 +1,27 @@
 ﻿'use client';
 
 import { useState } from 'react';
+import * as XLSX from 'xlsx';
+
+// 기존 응답 타입에 monthlyData 추가
+interface MonthlyData {
+  month: string;
+  blogPostCount: number;
+  cafePostCount: number;
+  total: number;
+}
+
+interface AnalyzeResult {
+  keyword: string;
+  startDate: string;
+  endDate: string;
+  summary: {
+    blogPostCount: number;
+    cafePostCount: number;
+    totalPosts: number;
+  };
+  monthlyData?: MonthlyData[];
+}
 
 export default function Home() {
   const [keyword, setKeyword] = useState('깨봉수학');
@@ -13,7 +34,7 @@ export default function Home() {
   const [endDate, setEndDate] = useState(todayStr);
 
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ summary: { blogPostCount: number; cafePostCount: number; totalPosts: number } } | null>(null);
+  const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -46,6 +67,49 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDownloadExcel = () => {
+    if (!result) return;
+
+    // 1. 요약 데이터 시트 생성
+    const summarySheetData = [
+      ['분석 요약'],
+      ['키워드', result.keyword],
+      ['분석 기간', `${result.startDate} ~ ${result.endDate}`],
+      [''],
+      ['구분', '게시물 수'],
+      ['네이버 블로그', result.summary.blogPostCount],
+      ['네이버 카페', result.summary.cafePostCount],
+      ['총 합계', result.summary.totalPosts]
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const wsSummary = XLSX.utils.aoa_to_sheet(summarySheetData);
+    XLSX.utils.book_append_sheet(wb, wsSummary, '요약');
+
+    // 2. 월별 데이터 시트 생성 (데이터가 있을 경우)
+    if (result.monthlyData && result.monthlyData.length > 1) {
+      const monthlySheetData = [
+        ['월', '네이버 블로그', '네이버 카페', '합계']
+      ];
+
+      result.monthlyData.forEach(item => {
+        monthlySheetData.push([
+          item.month,
+          item.blogPostCount.toString(),
+          item.cafePostCount.toString(),
+          item.total.toString()
+        ]);
+      });
+
+      const wsMonthly = XLSX.utils.aoa_to_sheet(monthlySheetData);
+      XLSX.utils.book_append_sheet(wb, wsMonthly, '월별 데이터');
+    }
+
+    // 파일 내보내기
+    const fileName = `소셜데이터분석_${result.keyword}_${result.startDate.replace(/-/g, '')}_${result.endDate.replace(/-/g, '')}.xlsx`;
+    XLSX.writeFile(wb, fileName);
   };
 
   return (
@@ -106,6 +170,12 @@ export default function Home() {
 
       {result && !loading && (
         <section className="dashboard">
+          <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+            <button onClick={handleDownloadExcel} className="download-btn" style={{ padding: '0.5rem 1rem', backgroundColor: '#107c41', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+              엑셀로 다운로드
+            </button>
+          </div>
+
           <div className="summary-cards">
             <div className="stat-card" style={{ gridColumn: '1 / -1' }}>
               <h3>기간 내 총 게시물 건수 (블로그 + 카페 합산)</h3>
@@ -127,6 +197,32 @@ export default function Home() {
               </ul>
             </div>
           </div>
+
+          {result.monthlyData && result.monthlyData.length > 1 && (
+            <div className="monthly-table-container card" style={{ marginTop: '2rem', padding: '1.5rem' }}>
+              <h3 style={{ marginBottom: '1rem', borderBottom: '2px solid #eee', paddingBottom: '0.5rem' }}>월별 집계 상세</h3>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f9f9fa' }}>
+                    <th style={{ padding: '0.75rem', borderBottom: '1px solid #ddd' }}>월 (Month)</th>
+                    <th style={{ padding: '0.75rem', borderBottom: '1px solid #ddd', color: '#03c75a' }}>네이버 블로그</th>
+                    <th style={{ padding: '0.75rem', borderBottom: '1px solid #ddd', color: '#ff5a5f' }}>네이버 카페</th>
+                    <th style={{ padding: '0.75rem', borderBottom: '1px solid #ddd', fontWeight: 'bold' }}>합계</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.monthlyData.map(item => (
+                    <tr key={item.month}>
+                      <td style={{ padding: '0.75rem', borderBottom: '1px solid #eee' }}>{item.month}</td>
+                      <td style={{ padding: '0.75rem', borderBottom: '1px solid #eee' }}>{item.blogPostCount} 건</td>
+                      <td style={{ padding: '0.75rem', borderBottom: '1px solid #eee' }}>{item.cafePostCount} 건</td>
+                      <td style={{ padding: '0.75rem', borderBottom: '1px solid #eee', fontWeight: 'bold' }}>{item.total} 건</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       )}
     </main>
